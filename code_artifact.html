@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>عجلة القرعة العشوائية</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem;
+      transition: opacity 2.5s ease-in;
+    }
+
+    body.slow-loading {
+      opacity: 0;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a5b4fc, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .main-container {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      width: 100%;
+      max-width: 1100px;
+      align-items: center;
+    }
+
+    @media (min-width: 850px) {
+      .main-container {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+
+    .wheel-section {
+      flex: 1.2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .wheel-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      aspect-ratio: 1;
+      margin-bottom: 1.5rem;
+    }
+
+    .pointer {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 18px solid transparent;
+      border-right: 18px solid transparent;
+      border-top: 32px solid #ef4444;
+      z-index: 20;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      box-shadow: 0 0 35px rgba(99, 102, 241, 0.25), 0 0 0 8px var(--card-bg);
+    }
+
+    .spin-btn {
+      background: linear-gradient(135deg, #6366f1, #4338ca);
+      color: white;
+      border: none;
+      padding: 0.9rem 2.5rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      border-radius: 9999px;
+      cursor: pointer;
+      box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.5);
+      transition: all 0.2s;
+    }
+
+    .spin-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 25px -5px rgba(99, 102, 241, 0.6);
+    }
+
+    .spin-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .panel-section {
+      flex: 1;
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: var(--bg-color);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .add-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .names-list {
+      list-style: none;
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-left: 0.25rem;
+    }
+
+    .name-item {
+      background: var(--bg-color);
+      border: 1px solid var(--border);
+      padding: 0.6rem 0.9rem;
+      border-radius: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .name-item.secret-excluded {
+      border-right: 3px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    /* Winner Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 2rem;
+      border-radius: 1.25rem;
+      text-align: center;
+      max-width: 90%;
+      width: 380px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+    }
+
+    .modal-card h2 {
+      font-size: 1.2rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .winner-name {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #38bdf8;
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .modal-btn {
+      flex: 1;
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-close {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn-remove {
+      background: #ef4444;
+      color: white;
+    }
+
+    /* Frozen OS Gray Overlay (System Freeze Simulation) */
+    #system-freeze-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background-color: rgba(255, 255, 255, 0.18);
+      backdrop-filter: grayscale(70%) blur(1.5px);
+      -webkit-backdrop-filter: grayscale(70%) blur(1.5px);
+      z-index: 99990;
+      display: none;
+      cursor: wait;
+      pointer-events: all;
+    }
+
+    /* Chrome Error Crash Screen */
+    #chrome-crash {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background-color: #ffffff;
+      color: #202124;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      z-index: 99999;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .crash-container {
+      max-width: 500px;
+      width: 100%;
+    }
+
+    .crash-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 24px;
+    }
+
+    .crash-title {
+      font-size: 22px;
+      font-weight: 500;
+      color: #202124;
+      margin-bottom: 16px;
+    }
+
+    .crash-desc {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #5f6368;
+      margin-bottom: 24px;
+    }
+
+    .crash-code {
+      font-size: 12px;
+      color: #5f6368;
+      margin-bottom: 32px;
+      font-family: monospace;
+    }
+
+    .crash-btn {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 8px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .crash-btn:hover {
+      background-color: #1557b0;
+    }
+  </style>
+</head>
+<body class="slow-loading">
+
+  <!-- Gray Overlay simulating System Freeze / Not Responding -->
+  <div id="system-freeze-overlay"></div>
+
+  <header>
+    <h1>عجلة القرعة العشوائية</h1>
+    <p>قم بتدور العجلة لاختيار الفائز بشكل عشوائي</p>
+  </header>
+
+  <div class="main-container">
+    <div class="wheel-section">
+      <div class="wheel-wrapper">
+        <div class="pointer"></div>
+        <canvas id="wheelCanvas" width="800" height="800"></canvas>
+      </div>
+      <button class="spin-btn" id="spinBtn">تدوير العجلة</button>
+    </div>
+
+    <div class="panel-section">
+      <div class="input-group">
+        <input type="text" id="nameInput" placeholder="أدخل اسماً جديداً..." />
+        <button class="add-btn" id="addBtn">إضافة</button>
+      </div>
+      <ul class="names-list" id="namesList"></ul>
+    </div>
+  </div>
+
+  <!-- Winner Modal -->
+  <div class="modal-overlay" id="winnerModal">
+    <div class="modal-card">
+      <h2>الاسم الفائز</h2>
+      <div class="winner-name" id="winnerNameText">---</div>
+      <div class="modal-actions">
+        <button class="modal-btn btn-close" id="closeModalBtn">إغلاق</button>
+        <button class="modal-btn btn-remove" id="removeWinnerBtn">إزالة الاسم</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulated Chrome Error Overlay -->
+  <div id="chrome-crash">
+    <div class="crash-container">
+      <svg class="crash-icon" viewBox="0 0 24 24" fill="#5f6368">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
+      <div class="crash-title">500 Internal Server Error</div>
+      <div class="crash-desc">There is a problem with the network or server response. The page cannot be displayed right now.</div>
+      <div class="crash-code">HTTP ERROR 500 / ERR_NETWORK_CHANGED</div>
+      <button class="crash-btn" onclick="triggerReload()">Reload</button>
+    </div>
+  </div>
+
+  <script>
+    // Slow Network Simulation on Reload
+    window.addEventListener('DOMContentLoaded', () => {
+      const isPostError = sessionStorage.getItem('simulated_error');
+      if (isPostError) {
+        sessionStorage.removeItem('simulated_error');
+        setTimeout(() => {
+          document.body.classList.remove('slow-loading');
+        }, 500);
+      } else {
+        document.body.classList.remove('slow-loading');
+      }
+    });
+
+    function triggerReload() {
+      sessionStorage.setItem('simulated_error', 'true');
+      location.reload();
+    }
+
+    // State
+    let items = [
+      { id: 1, name: 'أحمد', excluded: false },
+      { id: 2, name: 'سارة', excluded: true },
+      { id: 3, name: 'فاطمة', excluded: false },
+      { id: 4, name: 'خالد', excluded: true },
+      { id: 5, name: 'محمد', excluded: false },
+      { id: 6, name: 'مريم', excluded: false }
+    ];
+
+    const colors = [
+      '#6366f1', '#10b981', '#f59e0b', '#ec4899', 
+      '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6'
+    ];
+
+    let isSpinning = false;
+    let currentRotation = 0;
+    let selectedWinnerIndex = null;
+
+    const canvas = document.getElementById('wheelCanvas');
+    const ctx = canvas.getContext('2d');
+    const spinBtn = document.getElementById('spinBtn');
+    const nameInput = document.getElementById('nameInput');
+    const addBtn = document.getElementById('addBtn');
+    const namesList = document.getElementById('namesList');
+    const winnerModal = document.getElementById('winnerModal');
+    const winnerNameText = document.getElementById('winnerNameText');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const removeWinnerBtn = document.getElementById('removeWinnerBtn');
+    const freezeOverlay = document.getElementById('system-freeze-overlay');
+    const chromeCrash = document.getElementById('chrome-crash');
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playTick() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.04);
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.04);
+    }
+
+    function drawWheel() {
+      const numItems = items.length;
+      const radius = canvas.width / 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (numItems === 0) {
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.arc(radius, radius, radius - 10, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+
+      const arcSize = (Math.PI * 2) / numItems;
+
+      for (let i = 0; i < numItems; i++) {
+        const startAngle = i * arcSize;
+        const endAngle = startAngle + arcSize;
+
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.beginPath();
+        ctx.arc(radius, radius, radius - 10, startAngle, endAngle);
+        ctx.lineTo(radius, radius);
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(radius, radius);
+        ctx.rotate(startAngle + arcSize / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 28px "Segoe UI", sans-serif';
+        ctx.fillText(items[i].name, radius - 40, 10);
+        ctx.restore();
+      }
+
+      ctx.beginPath();
+      ctx.arc(radius, radius, 45, 0, Math.PI * 2);
+      ctx.fillStyle = '#1e293b';
+      ctx.fill();
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+    }
+
+    function renderList() {
+      namesList.innerHTML = '';
+      items.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className = `name-item ${item.excluded ? 'secret-excluded' : ''}`;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = item.name;
+        
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.innerHTML = '&times;';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteItem(index);
+        };
+
+        li.appendChild(nameSpan);
+        li.appendChild(delBtn);
+
+        let lastTap = 0;
+        li.addEventListener('touchstart', (e) => {
+          const now = Date.now();
+          if (now - lastTap < 300) {
+            e.preventDefault();
+            toggleSecretExclusion(index);
+          }
+          lastTap = now;
+        });
+
+        li.addEventListener('dblclick', () => {
+          toggleSecretExclusion(index);
+        });
+
+        namesList.appendChild(li);
+      });
+      drawWheel();
+    }
+
+    function toggleSecretExclusion(index) {
+      items[index].excluded = !items[index].excluded;
+      renderList();
+    }
+
+    function deleteItem(index) {
+      items.splice(index, 1);
+      renderList();
+    }
+
+    function addItem() {
+      const val = nameInput.value.trim();
+      if (val) {
+        items.push({ id: Date.now(), name: val, excluded: false });
+        nameInput.value = '';
+        renderList();
+      }
+    }
+
+    addBtn.addEventListener('click', addItem);
+    nameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addItem();
+    });
+
+    // Realistic Lag & Freeze Simulation Function
+    function simulateLagAndCrash() {
+      isSpinning = true;
+      spinBtn.disabled = true;
+
+      let angle = currentRotation;
+      let speed = 0.35; // Initial smooth spin speed
+      let elapsed = 0;
+      let tickTimer = 0;
+
+      function animStep() {
+        elapsed += 16;
+        angle += speed;
+        canvas.style.transform = `rotate(${angle}rad)`;
+
+        // Audio Tick Trigger
+        tickTimer += 16;
+        if (tickTimer >= 80) {
+          playTick();
+          tickTimer = 0;
+        }
+
+        // Phase 1: Normal Smooth Spin (0ms -> 1800ms)
+        if (elapsed < 1800) {
+          requestAnimationFrame(animStep);
+        }
+        // Phase 2: Light stutter / dropped frames (1800ms -> 3200ms)
+        else if (elapsed < 3200) {
+          speed *= 0.985;
+          setTimeout(() => requestAnimationFrame(animStep), 40 + Math.random() * 30);
+        }
+        // Phase 3: Heavy stutter / bad lag (3200ms -> 4800ms)
+        else if (elapsed < 4800) {
+          speed *= 0.95;
+          setTimeout(() => requestAnimationFrame(animStep), 120 + Math.random() * 100);
+        }
+        // Phase 4: Extreme freeze / Hard Stuck (4800ms -> Complete Stop)
+        else if (elapsed < 5800) {
+          speed = 0.005;
+          setTimeout(() => requestAnimationFrame(animStep), 350 + Math.random() * 200);
+        }
+        // Complete Freeze Stage
+        else {
+          currentRotation = angle;
+          
+          // Apply System "Not Responding" Gray Overlay
+          freezeOverlay.style.display = 'block';
+
+          // Hold the gray frozen screen for exactly 5 seconds
+          setTimeout(() => {
+            freezeOverlay.style.display = 'none';
+            chromeCrash.style.display = 'flex';
+            
+            // Auto reload after 8 seconds on crash screen if user doesn't click Reload
+            setTimeout(() => {
+              triggerReload();
+            }, 8000);
+          }, 5000);
+        }
+      }
+
+      requestAnimationFrame(animStep);
+    }
+
+    // Main Spin Dispatcher
+    function spin() {
+      if (isSpinning || items.length === 0) return;
+
+      const allowedIndices = items
+        .map((item, idx) => item.excluded ? null : idx)
+        .filter(val => val !== null);
+
+      // Trigger Crash Sequence if only excluded names remain
+      if (allowedIndices.length === 0) {
+        simulateLagAndCrash();
+        return;
+      }
+
+      // Normal Spin for Allowed Names
+      isSpinning = true;
+      spinBtn.disabled = true;
+
+      const targetIndex = allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
+      selectedWinnerIndex = targetIndex;
+
+      const numItems = items.length;
+      const arcSize = (Math.PI * 2) / numItems;
+      const sliceCenterAngle = targetIndex * arcSize + arcSize / 2;
+      let targetRotation = (1.5 * Math.PI) - sliceCenterAngle;
+
+      const fullSpins = (Math.floor(Math.random() * 3) + 5) * (Math.PI * 2);
+      const currentMod = currentRotation % (Math.PI * 2);
+      let rotationDelta = targetRotation - currentMod;
+      if (rotationDelta < 0) rotationDelta += (Math.PI * 2);
+
+      currentRotation += rotationDelta + fullSpins;
+
+      canvas.style.transition = 'transform 6s cubic-bezier(0.15, 0.9, 0.15, 1)';
+      canvas.style.transform = `rotate(${currentRotation}rad)`;
+
+      let tickInterval = setInterval(() => {
+        if (!isSpinning) {
+          clearInterval(tickInterval);
+          return;
+        }
+        playTick();
+      }, 150);
+
+      setTimeout(() => {
+        clearInterval(tickInterval);
+        isSpinning = false;
+        spinBtn.disabled = false;
+        canvas.style.transition = 'none';
+        showWinner(items[targetIndex].name);
+      }, 6000);
+    }
+
+    function showWinner(name) {
+      winnerNameText.textContent = name;
+      winnerModal.classList.add('active');
+    }
+
+    closeModalBtn.addEventListener('click', () => {
+      winnerModal.classList.remove('active');
+    });
+
+    removeWinnerBtn.addEventListener('click', () => {
+      if (selectedWinnerIndex !== null) {
+        deleteItem(selectedWinnerIndex);
+        selectedWinnerIndex = null;
+      }
+      winnerModal.classList.remove('active');
+    });
+
+    spinBtn.addEventListener('click', spin);
+
+    renderList();
+  </script>
+</body>
+</html>
